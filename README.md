@@ -1,7 +1,3 @@
-Claro! Vou adicionar as instruções para configurar o Kubernetes no AWS EKS antes dos passos já descritos. Aqui está a documentação atualizada:
-
----
-
 ## Kubernetes Deployment Project Documentation
 
 ## Project Overview
