@@ -119,3 +119,5 @@ kubectl get all
 This documentation provides a comprehensive guide for deploying multiple applications on a Kubernetes cluster using YAML configurations. Follow the steps carefully to ensure a successful deployment. For any issues or improvements, feel free to raise an issue or contribute to the repository.
 
 ---
+
+Please replace [yourdomain.com] and [your-folder] with the actual values corresponding to your domain and project directory. Make sure to follow the instructions in the correct order to ensure a smooth deployment process.
