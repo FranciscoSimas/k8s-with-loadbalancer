@@ -1,3 +1,6 @@
+
+---
+
 ## Kubernetes Deployment Project Documentation
 
 ## Project Overview
@@ -10,8 +13,7 @@ Before deploying the project, ensure you have the following prerequisites:
 
 1. Kubernetes cluster (minikube, k3s, or a managed Kubernetes service like GKE, EKS, or AKS).
 2. `kubectl` CLI tool installed and configured to interact with your Kubernetes cluster.
-3. `certbot` installed for generating SSL certificates from Let's Encrypt.
-4. DNS records configured for the domains used in the Nginx configuration.
+3. DNS records configured for the domains used in the Nginx configuration.
 
 ## Project Structure
 
@@ -28,435 +30,73 @@ The project directory contains the following files:
 
 ## Step-by-Step Deployment Guide
 
-### 1. Generate SSL Certificates
+### 1. Install Necessary Tools
 
-Use Certbot to generate SSL certificates for your domains. Replace `yourdomain.com` with your actual domain names.
-
-```bash
-sudo certbot certonly --manual --preferred-challenges=dns -d secret.simas.cloudns.ch -d plik.simas.cloudns.ch -d wiki.simas.cloudns.ch -d cert.simas.cloudns.ch
-```
-
-### 2. Prepare Kubernetes Secrets for SSL Certificates
-
-After generating the certificates, create a Kubernetes secret to store them. Replace the paths with the actual paths to your certificate files.
+Install the required development tools and Certbot:
 
 ```bash
-kubectl create secret generic simas14secret --from-file=fullchain.pem=/etc/letsencrypt/live/yourdomain.com/fullchain.pem --from-file=privkey.pem=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+sudo yum groupinstall "Development tools"
+sudo yum install certbot
 ```
 
-### 3. Deploy Services
+### 2. Configure DNS on CloudNS
 
-Run the deployment script to apply all Kubernetes configurations.
+1. Go to [CloudNS](https://www.cloudns.net/main/).
+2. Create a new DNS zone with your desired domain name.
+3. Within the zone, create 4 host records for each service (One Time Secret, Plik, Wiki.js, EJBCA) with type A, pointing to the public IP of your Kubernetes control plane.
+
+### 3. Generate SSL Certificates
+
+Use Certbot to generate SSL certificates for your domains:
 
 ```bash
-chmod +x deploy-all.sh
-./deploy-all.sh
+sudo certbot certonly --manual --preferred-challenges=dns -d secret.yourdomain.com -d plik.yourdomain.com -d wiki.yourdomain.com -d cert.yourdomain.com
 ```
 
-### 4. Verification
+### 4. Prepare Kubernetes Secrets for SSL Certificates
 
-After deploying the services, verify that all pods are running correctly.
+Create a directory named `certs` in your project folder and copy the SSL certificates to this directory:
 
 ```bash
-kubectl get pods
+sudo su
+cd /etc/letsencrypt/live
+cd [yourdomain.com]
+cp fullchain.pem /home/ec2-user/[your-folder]/certs
+cp privkey.pem /home/ec2-user/[your-folder]/certs
+chown ec2-user:ec2-user /home/ec2-user/[your-folder]/certs/fullchain.pem /home/ec2-user/[your-folder]/certs/privkey.pem
+exit
 ```
 
-Also, verify that the services are running and accessible via their respective URLs.
-
-## Detailed YAML Configurations
-
-### EJBCA Deployment (`ejbca-deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ejbca-deployment
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ejbca
-  template:
-    metadata:
-      labels:
-        app: ejbca
-    spec:
-      containers:
-      - name: ejbca
-        image: primekey/ejbca-ce:latest
-        ports:
-        - containerPort: 8080
-        - containerPort: 8443
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ejbca-service
-spec:
-  selector:
-    app: ejbca
-  ports:
-    - name: http
-      protocol: TCP
-      port: 7080
-      targetPort: 8080
-    - name: https
-      protocol: TCP
-      port: 8443
-      targetPort: 8443
-  type: ClusterIP
-```
-
-### Nginx ConfigMap (`nginx-configmap.yaml`)
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nginx-config
-data:
-  default.conf: |
-    server {
-        listen 80;
-        server_name secret.simas.cloudns.ch;
-
-        location / {
-            return 301 https://$host$request_uri;
-        }
-    }
-
-    server {
-        listen 443 ssl;
-        server_name secret.simas.cloudns.ch;
-        ssl_certificate /etc/nginx/certs/fullchain.pem;
-        ssl_certificate_key /etc/nginx/certs/privkey.pem;
-        
-        location / {
-            proxy_pass http://secret-service.default.svc.cluster.local:7143;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-
-    server {
-        listen 80;
-        server_name plik.simas.cloudns.ch;
-
-        location / {
-            return 301 https://$host$request_uri;
-        }
-    }
-
-    server {
-        listen 443 ssl;
-        server_name plik.simas.cloudns.ch;
-        
-        ssl_certificate /etc/nginx/certs/fullchain.pem;
-        ssl_certificate_key /etc/nginx/certs/privkey.pem;
-        
-        location / {
-            proxy_pass http://plik-service.default.svc.cluster.local:8080;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-
-    server {
-        listen 80;
-        server_name wiki.simas.cloudns.ch;
-
-        location / {
-            return 301 https://$host$request_uri;
-        }
-    }
-    
-    server {
-        listen 443 ssl;
-        server_name wiki.simas.cloudns.ch;
-        ssl_certificate /etc/nginx/certs/fullchain.pem;
-        ssl_certificate_key /etc/nginx/certs/privkey.pem;
-
-        location / {
-            proxy_pass http://wiki-service.default.svc.cluster.local:3000;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-
-    server {
-        listen 80;
-        server_name cert.simas.cloudns.ch;
-
-        location / {
-            rewrite ^/(.*)$ https://$server_name/ejbca/adminweb/$1 permanent;
-        }
-    }
-
-    server {
-        listen 443 ssl;
-        server_name cert.simas.cloudns.ch;
-
-        ssl_certificate /etc/nginx/certs/fullchain.pem;
-        ssl_certificate_key /etc/nginx/certs/privkey.pem;
-
-        location /ejbca/adminweb {
-            proxy_pass https://ejbca-service.default.svc.cluster.local:8443;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-```
-
-### Nginx Deployment (`nginx-deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx-proxy
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:latest
-        ports:
-        - containerPort: 80
-        - containerPort: 443
-        volumeMounts:
-        - name: nginx-config
-          mountPath: /etc/nginx/conf.d
-        - name: nginx-certs
-          mountPath: /etc/nginx/certs
-      volumes:
-      - name: nginx-config
-        configMap:
-          name: nginx-config
-      - name: nginx-certs
-        secret:
-          secretName: simas14secret
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx-service
-spec:
-  selector:
-    app: nginx
-  ports:
-    - name: http
-      protocol: TCP
-      port: 80
-      targetPort: 80
-      nodePort: 30080
-    - name: https
-      protocol: TCP
-      port: 443
-      targetPort: 443
-      nodePort: 30443
-  type: LoadBalancer
-```
-
-### One Time Secret Deployment (`onetimesecret-deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: secret-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: secret
-  template:
-    metadata:
-      labels:
-        app: secret
-    spec:
-      containers:
-      - name: secret
-        image: dismantl/onetimesecret:latest
-        ports:
-        - containerPort: 7143
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: secret-service
-spec:
-  selector:
-    app: secret
-  ports:
-    - protocol: TCP
-      port: 7143
-      targetPort: 7143
-  type: ClusterIP
-```
-
-### Plik Deployment (`plik-deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: plik-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: plik
-  template:
-    metadata:
-      labels:
-        app
-
-: plik
-    spec:
-      containers:
-      - name: plik
-        image: rootgg/plik:latest
-        ports:
-        - containerPort: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: plik-service
-spec:
-  selector:
-    app: plik
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 8080
-```
-
-### PostgreSQL Deployment (`postgres-deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      containers:
-      - name: postgres
-        image: postgres:latest
-        env:
-          - name: POSTGRES_DB
-            value: plik_db
-          - name: POSTGRES_USER
-            value: plik_user
-          - name: POSTGRES_PASSWORD
-            value: password  # Replace with a secure password
-        ports:
-          - containerPort: 5432
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres-service
-spec:
-  selector:
-    app: postgres
-  ports:
-    - protocol: TCP
-      port: 5432
-      targetPort: 5432
-```
-
-### Wiki.js Deployment (`wiki-deployment.yaml`)
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: wiki-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: wiki
-  template:
-    metadata:
-      labels:
-        app: wiki
-    spec:
-      containers:
-      - name: wiki
-        image: linuxserver/wikijs:latest
-        ports:
-        - containerPort: 3000
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: wiki-service
-spec:
-  selector:
-    app: wiki
-  ports:
-    - protocol: TCP
-      port: 3000
-      targetPort: 3000
-  type: ClusterIP
-```
-
-### Deployment Script (`deploy-all.sh`)
+Create a Kubernetes secret to store the SSL certificates:
 
 ```bash
-#!/bin/bash
+kubectl create secret generic "yourname"secret --from-file=fullchain.pem=/home/ec2-user/[your-folder]/certs/fullchain.pem --from-file=privkey.pem=/home/ec2-user/[your-folder]/certs/privkey.pem
+```
 
-sleep 2
-kubectl apply -f postgres-deployment.yaml
+### 5. Update DNS Records
 
-sleep 2
-kubectl apply -f plik-deployment.yaml
+1. Go to [CloudNS](https://www.cloudns.net/main/).
+2. In the same DNS zone, delete the existing A records.
+3. Create new CNAME records for the same hostnames, pointing to the LoadBalancer.
 
-sleep 2
-kubectl apply -f wiki-deployment.yaml
+### 6. Deploy Services
 
-sleep 2
-kubectl apply -f onetimesecret-deployment.yaml
+Run the deployment script to apply all Kubernetes configurations:
 
-sleep 2
-kubectl apply -f ejbca-deployment.yaml
+```bash
+sh deploy-all.sh
+```
 
-sleep 2
-kubectl apply -f nginx-configmap.yaml
+### 7. Verify Deployments
 
-sleep 2
-kubectl apply -f nginx-deployment.yaml
+Check that all pods are running correctly:
+
+```bash
+kubectl get all
 ```
 
 ## Conclusion
 
 This documentation provides a comprehensive guide for deploying multiple applications on a Kubernetes cluster using YAML configurations. Follow the steps carefully to ensure a successful deployment. For any issues or improvements, feel free to raise an issue or contribute to the repository.
+
+---
