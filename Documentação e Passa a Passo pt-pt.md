@@ -1,13 +1,3 @@
-Claro! Aqui está a tradução completa para português:
-
----
-
-## Documentação do Projeto de Implantação Kubernetes
-
-## Visão Geral do Projeto
-
-Este projeto tem como objetivo implantar várias aplicações em um cluster Kubernetes usando configurações YAML. As aplicações incluídas são EJBCA, One Time Secret, Plik, Wiki.js e PostgreSQL. Além disso, um proxy Nginx é utilizado para lidar com a terminação SSL e rotear o tráfego para os serviços apropriados. Os certificados SSL são obtidos da Let's Encrypt e os domínios DNS são configurados usando CloudNS.
-
 ## Pré-requisitos
 
 Antes de implantar o projeto, certifique-se de ter os seguintes pré-requisitos:
