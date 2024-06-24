@@ -1,3 +1,4 @@
+Claro! Vou adicionar as instruções para configurar o Kubernetes no AWS EKS antes dos passos já descritos. Aqui está a documentação atualizada:
 
 ---
 
@@ -11,9 +12,11 @@ This project aims to deploy several applications on a Kubernetes cluster using Y
 
 Before deploying the project, ensure you have the following prerequisites:
 
-1. Kubernetes cluster (minikube, k3s, or a managed Kubernetes service like GKE, EKS, or AKS).
-2. `kubectl` CLI tool installed and configured to interact with your Kubernetes cluster.
-3. DNS records configured for the domains used in the Nginx configuration.
+1. AWS account with permissions to create EKS clusters and nodes.
+2. Kubernetes cluster (EKS).
+3. `kubectl` CLI tool installed and configured to interact with your Kubernetes cluster.
+4. `certbot` installed for generating SSL certificates from Let's Encrypt.
+5. DNS records configured for the domains used in the Nginx configuration.
 
 ## Project Structure
 
@@ -30,7 +33,27 @@ The project directory contains the following files:
 
 ## Step-by-Step Deployment Guide
 
-### 1. Install Necessary Tools
+### 1. Configure Kubernetes on AWS
+
+#### 1.1. Create an EKS Cluster
+
+1. Go to the [AWS Management Console](https://aws.amazon.com/console/).
+2. Navigate to the EKS service.
+3. Create a new cluster and follow the configuration steps provided by AWS.
+4. Once the cluster is created, go to the "Compute" tab.
+
+#### 1.2. Create Worker Nodes
+
+1. In the "Compute" tab, create 3 nodes to be part of your cluster.
+2. Ensure that the security groups and IAM roles are correctly configured for the nodes.
+3. Verify that all nodes are in the "Ready" state.
+
+#### 1.3. Verify Load Balancer
+
+1. Check the Load Balancer created by EKS to ensure it is set up correctly.
+2. Verify the security groups associated with the Load Balancer to ensure proper traffic flow.
+
+### 2. Install Necessary Tools
 
 Install the required development tools and Certbot:
 
@@ -39,13 +62,13 @@ sudo yum groupinstall "Development tools"
 sudo yum install certbot
 ```
 
-### 2. Configure DNS on CloudNS
+### 3. Configure DNS on CloudNS
 
 1. Go to [CloudNS](https://www.cloudns.net/main/).
 2. Create a new DNS zone with your desired domain name.
 3. Within the zone, create 4 host records for each service (One Time Secret, Plik, Wiki.js, EJBCA) with type A, pointing to the public IP of your Kubernetes control plane.
 
-### 3. Generate SSL Certificates
+### 4. Generate SSL Certificates
 
 Use Certbot to generate SSL certificates for your domains:
 
@@ -53,7 +76,7 @@ Use Certbot to generate SSL certificates for your domains:
 sudo certbot certonly --manual --preferred-challenges=dns -d secret.yourdomain.com -d plik.yourdomain.com -d wiki.yourdomain.com -d cert.yourdomain.com
 ```
 
-### 4. Prepare Kubernetes Secrets for SSL Certificates
+### 5. Prepare Kubernetes Secrets for SSL Certificates
 
 Create a directory named `certs` in your project folder and copy the SSL certificates to this directory:
 
@@ -70,16 +93,16 @@ exit
 Create a Kubernetes secret to store the SSL certificates:
 
 ```bash
-kubectl create secret generic "yourname"secret --from-file=fullchain.pem=/home/ec2-user/[your-folder]/certs/fullchain.pem --from-file=privkey.pem=/home/ec2-user/[your-folder]/certs/privkey.pem
+kubectl create secret generic [yourname]secret --from-file=fullchain.pem=/home/ec2-user/[your-folder]/certs/fullchain.pem --from-file=privkey.pem=/home/ec2-user/[your-folder]/certs/privkey.pem
 ```
 
-### 5. Update DNS Records
+### 6. Update DNS Records
 
 1. Go to [CloudNS](https://www.cloudns.net/main/).
 2. In the same DNS zone, delete the existing A records.
 3. Create new CNAME records for the same hostnames, pointing to the LoadBalancer.
 
-### 6. Deploy Services
+### 7. Deploy Services
 
 Run the deployment script to apply all Kubernetes configurations:
 
@@ -87,7 +110,7 @@ Run the deployment script to apply all Kubernetes configurations:
 sh deploy-all.sh
 ```
 
-### 7. Verify Deployments
+### 8. Verify Deployments
 
 Check that all pods are running correctly:
 
