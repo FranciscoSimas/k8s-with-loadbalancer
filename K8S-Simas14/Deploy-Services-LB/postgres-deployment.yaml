@@ -21,7 +21,7 @@ spec:
           - name: POSTGRES_USER
             value: plik_user
           - name: POSTGRES_PASSWORD
-            value: password  # Replace with a secure password
+            value: CHANGE_ME  # set a real password locally; do not commit secrets
         ports:
           - containerPort: 5432
 ---

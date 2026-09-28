@@ -1,0 +1,4 @@
+﻿# TLS material (never commit real keys)
+*.pem
+*.key
+**/certs/
